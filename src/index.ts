@@ -2,14 +2,29 @@
  * Main entry point for HeroUI MCP Server
  */
 
+import { config } from "dotenv";
 import { logger } from "@utils/logger.js";
 import { HeroUiMcpApplication } from "./app.js";
+
+// Load environment variables from .env file
+config();
+import { getTransportType } from "./transport/transport.factory.js";
 
 /**
  * Main function to start the application
  */
 async function main(): Promise<void> {
 	try {
+		const transportType = getTransportType();
+		// Configure logger based on transport
+		if (transportType === "stdio") {
+			logger.configure({ silent: true }); // Disable logs in stdio mode
+			// Still log this one message to confirm transport mode
+			console.error(`Starting in stdio mode (transport=${process.env.TRANSPORT})`);
+		} else {
+			logger.info(`Starting in ${transportType} mode (transport=${process.env.TRANSPORT})`);
+		}
+
 		const app = new HeroUiMcpApplication();
 
 		// Handle graceful shutdown

@@ -21,6 +21,8 @@ export interface ServerConfig {
 	sessionIdGenerator: () => string;
 	/** Cache configuration */
 	cache: CacheConfig;
+	/** Transport type (http or stdio) */
+	transport?: "http" | "stdio";
 }
 
 export interface HttpTransportConfig {

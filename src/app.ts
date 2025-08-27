@@ -24,6 +24,7 @@ import { GetComponentUsageTool } from "@tools/components/get-component-usage.js"
 import { ListComponentsTool } from "@tools/components/list-components.js";
 import { ToolRegistryImpl } from "@tools/registry.js";
 import { SessionTransportManager } from "@transport/session-manager.js";
+import { TransportFactory, getTransportType } from "@transport/transport.factory.js";
 import type { Application, ServerDependencies } from "@types";
 import { asyncHandler } from "@utils/errors.js";
 import { logger } from "@utils/logger.js";
@@ -37,11 +38,13 @@ export class HeroUiMcpApplication implements Application {
 	private routeHandlers!: McpRouteHandlers;
 	private gitCache: GitCache;
 	private cacheInitialized = false;
+	private transportFactory: TransportFactory;
 
 	constructor(private readonly config: ServerConfig = defaultServerConfig) {
 		this.app = express();
 		this.sessionManager = new SessionTransportManager();
 		this.gitCache = new GitCache(this.config.cache);
+		this.transportFactory = new TransportFactory(this.config);
 		this.setupApplication();
 	}
 
@@ -53,31 +56,51 @@ export class HeroUiMcpApplication implements Application {
 			// Initialize cache before starting the server
 			await this.initializeCache();
 
-			return new Promise((resolve, reject) => {
-				try {
-					this.server = this.app.listen(this.config.port, () => {
-						logger.info(
-							`HeroUI MCP Server running on port ${this.config.port}`,
-						);
-						logger.info(
-							`Server name: ${this.config.name} v${this.config.version}`,
-						);
-						resolve();
-					});
-
-					this.server.on("error", (error: Error) => {
-						logger.error("Server error:", error);
-						reject(error);
-					});
-				} catch (error) {
-					logger.error("Failed to start server:", error);
-					reject(error);
-				}
-			});
+			const transportType = getTransportType();
+			
+			if (transportType === "stdio") {
+				await this.startStdioServer();
+			} else {
+				await this.startHttpServer();
+			}
 		} catch (error) {
 			logger.error("Failed to initialize application:", error);
 			throw error;
 		}
+	}
+
+	private async startStdioServer(): Promise<void> {
+		const transport = this.transportFactory.createTransport();
+		const serverFactory = new McpServerFactory(this.config);
+		const dependencies = this.createDependencies();
+		const server = serverFactory.createServer(dependencies);
+		
+		await server.connect(transport);
+		logger.info(`${this.config.name} v${this.config.version} started in stdio mode`);
+	}
+
+	private async startHttpServer(): Promise<void> {
+		return new Promise((resolve, reject) => {
+			try {
+				this.server = this.app.listen(this.config.port, () => {
+					logger.info(
+						`HeroUI MCP Server running on port ${this.config.port}`,
+					);
+					logger.info(
+						`Server name: ${this.config.name} v${this.config.version}`,
+					);
+					resolve();
+				});
+
+				this.server.on("error", (error: Error) => {
+					logger.error("Server error:", error);
+					reject(error);
+				});
+			} catch (error) {
+				logger.error("Failed to start server:", error);
+				reject(error);
+			}
+		});
 	}
 
 	/**

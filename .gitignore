@@ -48,5 +48,16 @@ temp/
 
 # AI Tools
 .opencode/
+
+# TypeScript
+*.tsbuildinfo
+
+# PNPM
+.pnpm-store/
+pnpm-debug.log*
+
+# Test Results
+.nyc_output/
+vitest.config.ts.timestamp-*
 ai/
 plan/
